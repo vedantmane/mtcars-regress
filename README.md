@@ -25,3 +25,123 @@ A data frame with 32 observations on 11 (numeric) variables.
 ## Source
 
 Henderson and Velleman (1981), Building multiple regression models interactively. Biometrics, 37, 391–411.
+
+
+---
+title: "The Future of Transmissions : Automatic or Manual?"
+author: "Vedant Mane"
+date: "June 25, 2020"
+output: 
+      pdf_document
+---
+
+## Synopsis
+The dataset is a collection of cars that the **Motor Trend** *magazine* are exploring in order to find the relationship between the set of variables and miles per gallon(MPG). The magazine is particularly interested in analysing whether automatic or manual transmission is better for MPG and wants to quantify the difference between them.
+
+### Description
+The data was extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models).
+
+### Source
+Henderson and Velleman (1981), Building multiple regression models interactively. Biometrics, 37, 391–411.
+
+## Loading Libraries
+Loading the libraries we will need for further modelling and analysing the dataset.
+```{r library,warning=FALSE}
+library(datasets)
+library(graphics)
+library(MASS)
+library(ggplot2)
+```
+
+## Exploring the Dataset
+The dataset appears to have all the numeric values for the attributes which represent the characteristics of a car and so we will need to perform some tranformations in our dataset so that instead of analysing our data as numeric values we will analyse them as factor variables.
+
+```{r datasets, cache=TRUE, echo=FALSE}
+data(mtcars)
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <- factor(mtcars$vs)
+mtcars$am <- factor(mtcars$am)
+mtcars$transmission[mtcars$am == 0] <- "automatic"
+mtcars$transmission[which(mtcars$am == 1)] <- "manual"
+mtcars$transmission <- factor(mtcars$transmission)
+str(mtcars)
+```
+
+### Linear Model of the *MTCARS* Dataset
+
+Let us first check which of the variables are correlated and which ones are uncorrelated with the MPG values which we are trying to predict. We will exclude the intercept from our model so that we get a clear idea about the data.
+
+We know that including more variables potentially results in a biased prediction from our model but excluding important variables may lead to huge standard errors from our prediction model.
+
+```{r fitALL}
+fitALL <- lm(mpg ~ . -1, data = mtcars)
+summary(fitALL)$coef
+```
+
+We see that as we have included all the variables in our prediction model, we have obtained huge standard errors which makes our model not suitable for prediction.
+
+### Linear Model MPG w.r.t Transmission Type
+
+Let us directly address the question we are trying to answer by fitting a model that gives us the MPG value(outcome) by analysing the Type of Transmission of the car.
+
+```{r fitTransmission}
+fitTransmission <- lm(mpg ~ am -1, data = mtcars)
+summ <- summary(fitTransmission)$coef
+summ
+manual <- summ[1,1] + c(-1,1) * qt(0.975, df.residual(fitTransmission) * summ[1,2])
+automatic  <- summ[2,1] + c(-1,1) * qt(0.975, df.residual(fitTransmission) * summ[2,2])
+diff <- -(summ[1,1] - summ[2,1])
+```
+
+Initial assessment indicates that the **Type of transmission** has a significant impact on the **MPG** values.
+
+Our analysis shows with 95% confidence that the cars with manual transmission have MPG values in the range **`r manual`**, while cars with automatic transmission have MPG values in the range **`r automatic`**.
+
+The Linear Regression Model estimates around **`r round(diff, 3)`** increase in MPG value for cars with Manual Transmission with that of Automatic Transmission.
+
+### Exploring the MPG variable 
+
+```{r mpgamBOX,fig.align='center',fig.height=4,fig.width=6}
+ggplot(mtcars, aes(x = transmission, y = mpg)) + geom_boxplot(aes(fill = transmission)) + 
+      xlab("Type of Transmission") + ylab("Miles Per Gallon") + 
+      ggtitle("Analysing Transmissions w.r.t. MPG")
+```
+
+The plot proves that the relationship we have estimated from our model is true and that the type of transmissions causes a significant positive impact on MPG.
+
+```{r diagnoseFitTransmission,fig.align='center',fig.height=4,fig.width=6}
+dfT <- dfbeta(fitTransmission)
+hatT <- hatvalues(fitTransmission)
+par(mfrow = c(2,2))
+plot(fitTransmission)
+```
+
+Though initial assessment of the model proves true, after diagnostics we can say that we are close to predicting the correct output. Let's see if we can do better.
+
+### Linear Model Selecting Best Variable for Predicting MPG
+
+Now, let us see whether any other variables help us improve our model and reducing the standard error rate. We can do this using the STEPWISE function which automatically fits our model with the relevant attributes to accurately estimate the outcome and reduce the standard error in prediction.
+
+```{r fitSelective}
+fitSelective <- stepAIC(fitALL, direction = "both", trace = FALSE)
+sumn <- summary(fitSelective)$coef
+sumn
+```
+
+We see that the function chooses the following variables while fitting our model:   **am, cyl, hp, wt**
+
+```{r diagnoseFitSelective,fig.align='center',fig.height=4,fig.width=6}
+dfS <- dfbeta(fitSelective)
+hatS <- hatvalues(fitSelective)
+par(mfrow = c(2,2))
+plot(fitSelective)
+```
+
+Our diagnostics show that when we add a few variables to our model, the impact of the type of transmission lowers down to **`r round(sumn['am1',1],3)`**.
+
+## Conclusion 
+Let us compare our models:  
+```{r compare}
+anova(fitTransmission, fitSelective, fitALL)
+```
+We see that when comparing our models, the p-value of the Selective Models drops with respect to the Transmission Model which states that while Manual Transmissions are significant when deteriming MPG, it has lower value significance when adding Number of Cylinders, Horse Power and Weight.
